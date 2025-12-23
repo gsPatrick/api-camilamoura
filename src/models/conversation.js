@@ -8,8 +8,12 @@ const Conversation = sequelize.define('Conversation', {
         unique: true,
     },
     step: {
-        type: DataTypes.ENUM('WAITING_FOR_INPUT', 'PROCESSING'),
-        defaultValue: 'WAITING_FOR_INPUT',
+        type: DataTypes.ENUM('WAITING_FOR_NAME', 'WAITING_FOR_CASE', 'PROCESSING'),
+        defaultValue: 'WAITING_FOR_NAME',
+    },
+    clientName: {
+        type: DataTypes.STRING,
+        allowNull: true
     },
     lastMessageRaw: {
         type: DataTypes.TEXT,
@@ -21,3 +25,4 @@ const Conversation = sequelize.define('Conversation', {
 });
 
 module.exports = Conversation;
+

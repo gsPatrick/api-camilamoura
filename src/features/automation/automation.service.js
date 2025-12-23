@@ -33,26 +33,58 @@ class AutomationService {
     async handleLeadFlow(phone, message) {
         let conversation = await Conversation.findOne({ where: { phone } });
 
-        // Cenário A: Primeira interação
+        // ====== ETAPA 1: Primeira interação - Enviar Aviso Ético e pedir nome ======
         if (!conversation) {
             console.log(`[Flow] Novo contato: ${phone}. Enviando Aviso Ético.`);
 
             const avisoEtico = await BotConfig.findOne({ where: { key: 'AVISO_ETICO' } });
             const text = avisoEtico ? avisoEtico.value :
-                'Olá! Você entrou em contato com o escritório da Dra. Camila Moura. ⚖️\n\nPor favor, descreva brevemente sua situação para que possamos direcionar seu atendimento.';
+                'Olá! Você entrou em contato com o escritório da Dra. Camila Moura. ⚖️\n\nAtuamos nas áreas de Direito Previdenciário, Trabalhista e do Consumidor.';
 
             await this.sendWhatsappMessage(phone, text);
 
+            // Aguarda um pouco e pede o nome
+            await this.sendWhatsappMessage(phone, "Para começarmos, qual é o seu nome completo? 📝");
+
             await Conversation.create({
                 phone,
-                step: 'WAITING_FOR_INPUT'
+                step: 'WAITING_FOR_NAME'
             });
             return;
         }
 
-        // Cenário B: Cliente respondeu após o Aviso Ético
-        if (conversation.step === 'WAITING_FOR_INPUT') {
-            console.log(`[Flow] Recebido relato de ${phone}. Processando...`);
+        // ====== ETAPA 2: Recebendo o nome do cliente ======
+        if (conversation.step === 'WAITING_FOR_NAME') {
+            // Extrai apenas o nome (remove caracteres especiais, limita tamanho)
+            let clientName = message.trim().replace(/[^a-zA-ZÀ-ÿ\s]/g, '').substring(0, 100);
+
+            // Capitaliza o nome
+            clientName = clientName.split(' ').map(word =>
+                word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()
+            ).join(' ');
+
+            if (!clientName || clientName.length < 2) {
+                await this.sendWhatsappMessage(phone, "Por favor, informe seu nome completo para prosseguirmos. 😊");
+                return;
+            }
+
+            console.log(`[Flow] Nome recebido de ${phone}: ${clientName}`);
+
+            // Salva o nome e avança para próxima etapa
+            conversation.clientName = clientName;
+            conversation.step = 'WAITING_FOR_CASE';
+            await conversation.save();
+
+            await this.sendWhatsappMessage(phone,
+                `Prazer, ${clientName.split(' ')[0]}! 😊\n\nAgora, por favor, descreva brevemente sua situação para que possamos direcionar seu atendimento.`
+            );
+            return;
+        }
+
+        // ====== ETAPA 3: Recebendo a descrição do caso ======
+        if (conversation.step === 'WAITING_FOR_CASE') {
+            const clientName = conversation.clientName || phone;
+            console.log(`[Flow] Caso recebido de ${clientName} (${phone}). Processando...`);
 
             // Mensagem de processamento (SEM mencionar IA)
             await this.sendWhatsappMessage(phone, "Recebemos seu relato! Estamos analisando seu caso... ⏳");
@@ -78,14 +110,14 @@ class AutomationService {
                 await this.sendWhatsappMessage(phone, presencialText);
             }
 
-            // Cria Card no Trello
-            await this.createTrelloCard(phone, message, classification, requiresInPerson);
+            // Cria Card no Trello com o nome correto
+            await this.createTrelloCard(phone, message, { ...classification, client_name: clientName }, requiresInPerson);
 
             // Limpa estado
             await conversation.destroy();
 
             // Mensagem final (SEM mencionar IA)
-            await this.sendWhatsappMessage(phone, "Seu caso foi encaminhado para a Dra. Camila. Entraremos em contato em breve. ✅");
+            await this.sendWhatsappMessage(phone, `${clientName.split(' ')[0]}, seu caso foi encaminhado para a Dra. Camila. Entraremos em contato em breve! ✅`);
         }
     }
 
