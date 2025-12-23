@@ -10,6 +10,7 @@ console.log('🚀 Sistema Advocacia Camila Moura - Iniciando...');
 
 const UserService = require('./src/features/user/user.service');
 const BotConfig = require('./src/models/botConfig');
+const KnowledgeBase = require('./src/models/knowledgeBase');
 
 // Default configurations for the bot
 const DEFAULT_CONFIGS = [

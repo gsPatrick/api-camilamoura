@@ -117,7 +117,7 @@ class AutomationService {
             await conversation.destroy();
 
             // Mensagem final (SEM mencionar IA)
-            await this.sendWhatsappMessage(phone, `${clientName.split(' ')[0]}, seu caso foi encaminhado para a Dra. Camila. Entraremos em contato em breve! ✅`);
+            await this.sendWhatsappMessage(phone, `${clientName.split(' ')[0]}, seu caso foi encaminhado para nossa equipe jurídica. Entraremos em contato em breve! ✅`);
         }
     }
 
