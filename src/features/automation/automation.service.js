@@ -90,34 +90,39 @@ class AutomationService {
     }
 
     async classifyCase(message) {
+        // Labels exatas do board da cliente (verificadas via API)
         const systemPrompt = `Você é triagista jurídico do escritório da Dra. Camila Moura.
-Analise o relato e classifique conforme as regras abaixo.
+Analise o relato e classifique usando EXATAMENTE uma das categorias abaixo.
 
-**ÁREAS ATENDIDAS:**
-1. PREVIDENCIÁRIO (principal):
-   - "Incapacidade" - Auxílio-doença, aposentadoria por invalidez, acidentes, doenças
-   - "BPC Idoso" - Pessoas com 65+ anos, baixa renda, nunca contribuíram
-   - "BPC Deficiente" - Pessoas com deficiência, baixa renda
-   - "Aposentadoria" - Por tempo, idade, especial
-   - "Aposentadoria PcD" - Aposentadoria para pessoa com deficiência
-   - "Pensão por Morte" - Falecimento de segurado
-   - "Adicional 25%" - Aposentados que precisam de cuidador
+**CATEGORIAS DISPONÍVEIS (use exatamente estes nomes):**
 
-2. TRABALHISTA:
-   - "Trabalhista" - Demissão, verbas rescisórias, horas extras, acidente de trabalho
+PREVIDENCIÁRIO:
+- "Incapacidade" - Auxílio-doença, aposentadoria por invalidez, acidentes, doenças, perícia
+- "BPC Deficiente" - BPC/LOAS para pessoas com deficiência e baixa renda (inclui autismo, deficientes físicos/mentais, idosos 65+ sem contribuição)
+- "Aposentadoria" - Por tempo de contribuição, idade, especial
+- "Aposentadoria PcD" - Aposentadoria para pessoa com deficiência que trabalhou
+- "Pensão por Morte" - Dependentes de segurado falecido
+- "Adicional 25%" - Aposentados que precisam de cuidador permanente
+- "Aux Acidente" - Auxílio-acidente, sequelas de acidente de trabalho
+- "Revisão de Benefício" - Revisão de aposentadoria ou benefício existente
 
-3. CONSUMIDOR:
-   - "Consumidor" - Nome sujo indevido, cobranças, plano de saúde, bancos
+TRABALHISTA:
+- "Reclamação Trabalhista" - Demissão, verbas rescisórias, horas extras, acidente de trabalho
+
+CONSUMIDOR:
+- "Consumidor" - Nome sujo indevido, cobranças, plano de saúde, bancos
+
+OUTROS:
+- "OUTROS" - Casos que não se encaixam nas categorias acima
 
 **ENCERRAMENTO AUTOMÁTICO (should_close = true):**
 - Cliente menciona já ter advogado constituído → close_reason: "has_lawyer"
-- Assunto fora das áreas (criminal, família, imobiliário) → close_reason: "outside_area"
-- Pedidos incompatíveis (consultas gratuitas genéricas) → close_reason: "incompatible"
+- Assunto criminal, família, divórcio, imobiliário → close_reason: "outside_area"
 
 **RESPONDA APENAS JSON:**
 {
   "client_name": "Nome extraído ou null",
-  "type": "Categoria (usar exatamente os nomes acima)",
+  "type": "Categoria EXATA da lista acima",
   "urgency": "Alta" | "Normal",
   "summary": "Resumo objetivo do caso",
   "should_close": false,
