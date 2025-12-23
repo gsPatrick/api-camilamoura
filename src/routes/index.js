@@ -5,6 +5,7 @@ const userRoutes = require('../features/user/user.routes');
 const automationController = require('../features/automation/automation.controller');
 const configRoutes = require('../features/config/config.routes');
 const knowledgeRoutes = require('../features/knowledge/knowledge.routes');
+const flowRoutes = require('../features/flow/flow.routes');
 
 router.use('/', userRoutes);
 
@@ -23,6 +24,8 @@ router.post('/webhook-debug', (req, res) => {
 
 router.use('/', configRoutes);
 router.use('/', knowledgeRoutes);
+router.use('/', flowRoutes);
 
 module.exports = router;
+
 
