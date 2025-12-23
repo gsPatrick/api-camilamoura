@@ -6,6 +6,7 @@ const automationController = require('../features/automation/automation.controll
 const configRoutes = require('../features/config/config.routes');
 const knowledgeRoutes = require('../features/knowledge/knowledge.routes');
 const flowRoutes = require('../features/flow/flow.routes');
+const simulatorRoutes = require('../features/simulator/simulator.routes');
 const Conversation = require('../models/conversation');
 
 router.use('/', userRoutes);
@@ -58,6 +59,7 @@ router.get('/reset-my-test', async (req, res) => {
 router.use('/', configRoutes);
 router.use('/', knowledgeRoutes);
 router.use('/', flowRoutes);
+router.use('/', simulatorRoutes);
 
 module.exports = router;
 

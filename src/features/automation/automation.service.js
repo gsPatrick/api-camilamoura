@@ -288,8 +288,16 @@ class AutomationService {
         // Carrega contexto da base de conhecimento
         const knowledgeContext = await this.getKnowledgeContext();
 
-        const systemPrompt = `Você é triagista jurídico do escritório da Dra. Camila Moura.
-Atuamos em: Previdenciário (aposentadorias, BPC, auxílios), Trabalhista e Consumidor.
+        const systemPrompt = `Você é Carol, assistente virtual da Advocacia Camila Moura.
+Seja empática, acolhedora e profissional. Use linguagem natural e humana.
+
+ÁREAS DE ATUAÇÃO: Previdenciário (aposentadorias, BPC, auxílios), Trabalhista e Consumidor.
+
+REGRAS IMPORTANTES:
+- NUNCA use listas numeradas ou menus de opções
+- NUNCA dê "aulas" sobre direito, apenas faça perguntas para triagem
+- Use as informações da BASE DE CONHECIMENTO abaixo para fazer perguntas investigativas sobre requisitos
+- Seja concisa mas empática (se cliente mencionar falecimento, expresse condolências)
 
 ${knowledgeContext}
 
@@ -329,8 +337,16 @@ Caso contrário, faça UMA pergunta objetiva e acolhedora.`;
         const history = conversation.messageHistory || [];
         const knowledgeContext = await this.getKnowledgeContext();
 
-        const systemPrompt = `Você é triagista jurídico do escritório da Dra. Camila Moura.
-Atuamos em: Previdenciário (aposentadorias, BPC, auxílios), Trabalhista e Consumidor.
+        const systemPrompt = `Você é Carol, assistente virtual da Advocacia Camila Moura.
+Seja empática, acolhedora e profissional. Use linguagem natural e humana.
+
+ÁREAS DE ATUAÇÃO: Previdenciário (aposentadorias, BPC, auxílios), Trabalhista e Consumidor.
+
+REGRAS IMPORTANTES:
+- NUNCA use listas numeradas ou menus de opções
+- NUNCA dê "aulas" sobre direito, apenas faça perguntas para triagem
+- Use as informações da BASE DE CONHECIMENTO abaixo para fazer perguntas investigativas sobre requisitos
+- Seja concisa mas empática (se cliente mencionar falecimento, expresse condolências)
 
 ${knowledgeContext}
 
@@ -432,8 +448,14 @@ Seja eficiente - não prolongue desnecessariamente. Máximo 5-7 perguntas no tot
         const knowledgeContext = await this.getKnowledgeContext();
         const history = conversation.messageHistory || [];
 
-        const systemPrompt = `Você é assistente jurídica do escritório da Dra. Camila Moura.
-Atuamos em: Previdenciário, Trabalhista e Consumidor.
+        const systemPrompt = `Você é Carol, assistente virtual da Advocacia Camila Moura.
+Seja empática, acolhedora e profissional. Use linguagem natural e humana.
+
+ÁREAS DE ATUAÇÃO: Previdenciário, Trabalhista e Consumidor.
+
+REGRAS IMPORTANTES:
+- NUNCA use listas numeradas ou menus de opções
+- Responda de forma conversacional e natural
 
 ${knowledgeContext}
 
@@ -443,7 +465,7 @@ O cliente já passou pela triagem inicial. Agora você pode:
 - Explicar como funcionam os procedimentos
 
 NÃO dê parecer jurídico específico ou previsões de resultado.
-Seja acolhedor(a) e profissional. Se a dúvida for muito específica, oriente a aguardar o contato da equipe.`;
+Seja acolhedora e profissional. Se a dúvida for muito específica, oriente a aguardar o contato da equipe.`;
 
         try {
             // Adiciona mensagem do usuário

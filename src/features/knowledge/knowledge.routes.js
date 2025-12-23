@@ -3,7 +3,7 @@ const router = express.Router();
 const multer = require('multer');
 const pdfParse = require('pdf-parse');
 const KnowledgeBase = require('../../models/knowledgeBase');
-const authMiddleware = require('../user/auth.middleware');
+const authMiddleware = require('../../middleware/auth');
 
 // Configuração do multer para upload de PDFs
 const storage = multer.memoryStorage();
@@ -117,6 +117,91 @@ router.delete('/knowledge/:id', authMiddleware, async (req, res) => {
     } catch (error) {
         console.error('Error deleting document:', error);
         res.status(500).json({ error: 'Erro ao remover documento' });
+    }
+});
+
+// PUT - Editar conteúdo/texto do documento (para corrigir PDFs desformatados)
+router.put('/knowledge/:id/content', authMiddleware, async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { content } = req.body;
+
+        if (!content) {
+            return res.status(400).json({ error: 'Conteúdo é obrigatório' });
+        }
+
+        const document = await KnowledgeBase.findByPk(id);
+        if (!document) {
+            return res.status(404).json({ error: 'Documento não encontrado' });
+        }
+
+        // Atualiza conteúdo e recria resumo
+        const summary = content.substring(0, 500) + (content.length > 500 ? '...' : '');
+
+        await document.update({ content, summary });
+
+        res.json({
+            message: 'Conteúdo atualizado com sucesso',
+            document: {
+                id: document.id,
+                title: document.title,
+                summary: document.summary
+            }
+        });
+    } catch (error) {
+        console.error('Error updating content:', error);
+        res.status(500).json({ error: 'Erro ao atualizar conteúdo' });
+    }
+});
+
+// GET - Obter conteúdo completo de um documento (para edição)
+router.get('/knowledge/:id/content', authMiddleware, async (req, res) => {
+    try {
+        const { id } = req.params;
+        const document = await KnowledgeBase.findByPk(id, {
+            attributes: ['id', 'title', 'content', 'category']
+        });
+
+        if (!document) {
+            return res.status(404).json({ error: 'Documento não encontrado' });
+        }
+
+        res.json(document);
+    } catch (error) {
+        console.error('Error fetching content:', error);
+        res.status(500).json({ error: 'Erro ao buscar conteúdo' });
+    }
+});
+
+// POST - Criar conhecimento via texto direto (sem PDF)
+router.post('/knowledge/text', authMiddleware, async (req, res) => {
+    try {
+        const { title, content, category } = req.body;
+
+        if (!title || !content) {
+            return res.status(400).json({ error: 'Título e conteúdo são obrigatórios' });
+        }
+
+        const summary = content.substring(0, 500) + (content.length > 500 ? '...' : '');
+
+        const document = await KnowledgeBase.create({
+            title,
+            fileName: '[Texto Manual]',
+            content,
+            summary,
+            category: category || 'geral',
+            isActive: true
+        });
+
+        res.status(201).json({
+            id: document.id,
+            title: document.title,
+            summary: document.summary,
+            message: 'Conhecimento adicionado com sucesso'
+        });
+    } catch (error) {
+        console.error('Error creating text knowledge:', error);
+        res.status(500).json({ error: 'Erro ao criar conhecimento' });
     }
 });
 

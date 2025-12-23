@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const FlowConfig = require('../../models/flowConfig');
 const FlowQuestion = require('../../models/flowQuestion');
-const authMiddleware = require('../user/auth.middleware');
+const authMiddleware = require('../../middleware/auth');
 
 // GET - Obter configuração de fluxo atual
 router.get('/flow-config', authMiddleware, async (req, res) => {
