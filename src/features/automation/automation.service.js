@@ -1,6 +1,6 @@
 const { zapiClient, trelloClient, openaiClient } = require('../../config/apiClients');
 const BotConfig = require('../../models/botConfig');
-const Conversation = require('../../models/conversation'); // Importando o modelo de estado
+const Conversation = require('../../models/conversation');
 const boardId = process.env.TRELLO_BOARD_ID;
 
 class AutomationService {
@@ -15,15 +15,14 @@ class AutomationService {
 
         try {
             // 1. Verifica se já existe Card no Trello (Cliente Antigo)
-            // Se existir, apenas comenta e encerra.
             const existingCard = await this.findTrelloCard(phone);
             if (existingCard) {
                 console.log(`[Trello] Card encontrado para ${phone}. Adicionando comentário.`);
-                await this.addCommentToCard(existingCard.id, `Mensagem do Cliente: ${message}`);
+                await this.addCommentToCard(existingCard.id, `Nova mensagem do cliente:\n${message}`);
                 return;
             }
 
-            // 2. Fluxo de Novo Lead -> Gestão de Estado
+            // 2. Fluxo de Novo Lead
             await this.handleLeadFlow(phone, message);
 
         } catch (error) {
@@ -32,19 +31,18 @@ class AutomationService {
     }
 
     async handleLeadFlow(phone, message) {
-        // Verifica estado da conversa no DB local
         let conversation = await Conversation.findOne({ where: { phone } });
 
-        // Cenario A: Primeira interação (Sem registro)
+        // Cenário A: Primeira interação
         if (!conversation) {
             console.log(`[Flow] Novo contato: ${phone}. Enviando Aviso Ético.`);
 
             const avisoEtico = await BotConfig.findOne({ where: { key: 'AVISO_ETICO' } });
-            const text = avisoEtico ? avisoEtico.value : 'Olá, aguarde um momento...';
+            const text = avisoEtico ? avisoEtico.value :
+                'Olá! Você entrou em contato com o escritório da Dra. Camila Moura. ⚖️\n\nPor favor, descreva brevemente sua situação para que possamos direcionar seu atendimento.';
 
             await this.sendWhatsappMessage(phone, text);
 
-            // Salva estado para esperar a resposta (o relato do caso)
             await Conversation.create({
                 phone,
                 step: 'WAITING_FOR_INPUT'
@@ -52,92 +50,142 @@ class AutomationService {
             return;
         }
 
-        // Cenario B: Cliente respondeu após o Aviso Ético (O relato do caso)
+        // Cenário B: Cliente respondeu após o Aviso Ético
         if (conversation.step === 'WAITING_FOR_INPUT') {
-            console.log(`[Flow] Recebido relato de ${phone}. Iniciando Triagem IA.`);
+            console.log(`[Flow] Recebido relato de ${phone}. Processando...`);
 
-            // 1. Obter prompt base e especialidades do banco
-            const basePromptConfig = await BotConfig.findOne({ where: { key: 'PROMPT_SISTEMA_BASE' } });
-            const specialtiesConfig = await BotConfig.findOne({ where: { key: 'SPECIALTIES_JSON' } });
+            // Mensagem de processamento (SEM mencionar IA)
+            await this.sendWhatsappMessage(phone, "Recebemos seu relato! Estamos analisando seu caso... ⏳");
 
-            let systemPromptText = '';
+            // Classificação com IA
+            const classification = await this.classifyCase(message);
 
-            if (basePromptConfig) systemPromptText += basePromptConfig.value + '\n\n';
-
-            if (specialtiesConfig) {
-                try {
-                    const specialties = JSON.parse(specialtiesConfig.value);
-                    systemPromptText += `Instrução: Classifique o relato do cliente com base nestas categorias:\n`;
-                    systemPromptText += specialties.map(c =>
-                        `- ${c.name}: Gatilhos: [${c.keywords}]. Regras: ${c.rules}. Urgência: ${c.urgent ? 'ALTA' : 'NORMAL'}`
-                    ).join('\n');
-                } catch (e) {
-                    console.error('Erro ao processar JSON de especialidades:', e);
-                }
+            // Verifica encerramento automático
+            if (classification.should_close) {
+                const closeMsg = await this.getCloseMessage(classification.close_reason);
+                await this.sendWhatsappMessage(phone, closeMsg);
+                await conversation.destroy();
+                return;
             }
 
-            systemPromptText += `
----
-**SAÍDA OBRIGATÓRIA (JSON ESTRICTO):**
-{
-  "client_name": "Nome do Cliente (ou null)",
-  "type": "Categoria Identificada (entre as listadas acima ou Outros)",
-  "urgency": "Alta" | "Baixa",
-  "summary": "Resumo do caso em 1 frase"
-}`;
+            // Verifica casos de atendimento presencial obrigatório
+            const requiresInPerson = this.requiresInPersonAttendance(classification);
 
-            await this.sendWhatsappMessage(phone, "Recebi seu relato. Nossa inteligência artificial está analisando para priorizar seu caso... ⏳");
-
-            let classification;
-            try {
-                const response = await openaiClient.post('/chat/completions', {
-                    model: "gpt-4-turbo-preview",
-                    messages: [
-                        { role: "system", content: systemPromptText },
-                        { role: "user", content: `Relato do cliente: "${message}"` }
-                    ],
-                    response_format: { type: "json_object" },
-                    temperature: 0.0
-                });
-                classification = JSON.parse(response.data.choices[0].message.content);
-            } catch (error) {
-                console.error('OpenAI Error:', error.response?.data || error.message);
-                classification = { type: 'Geral', urgency: 'Low', summary: message };
-            }
-
-            const urgencyKeywords = ['Incapacidade', 'Acidente', 'Doença', 'Liminar'];
-            let isUrgent = classification.urgency === 'Alta' || urgencyKeywords.some(kw => classification.type && classification.type.includes(kw));
-
-            if (isUrgent) {
+            if (requiresInPerson) {
                 const msgPresencial = await BotConfig.findOne({ where: { key: 'MSG_PRESENCIAL' } });
-                const presencialText = msgPresencial?.value || 'Caso urgente detectado.';
+                const presencialText = msgPresencial?.value ||
+                    'Identificamos que seu caso requer atendimento presencial inicial. Por favor, entre em contato pelo telefone do escritório para agendar uma consulta.';
                 await this.sendWhatsappMessage(phone, presencialText);
             }
 
             // Cria Card no Trello
-            await this.createTrelloCard(phone, message, classification, isUrgent);
+            await this.createTrelloCard(phone, message, classification, requiresInPerson);
 
-            // Limpa estado (ou marca como 'COMPLETED') para que próximas msgs caiam no fluxo de "Card Existente"
-            // Como o card demora uns ms para indexar na busca do Trello, idealmente manteríamos o state
-            // mas vamos deletar para limpar a tabela, pois na próxima msg o findTrelloCard deve achar.
+            // Limpa estado
             await conversation.destroy();
 
-            await this.sendWhatsappMessage(phone, "Pronto! Seu caso foi encaminhado para a Dra. Camila. Em breve entraremos em contato. ✅");
+            // Mensagem final (SEM mencionar IA)
+            await this.sendWhatsappMessage(phone, "Seu caso foi encaminhado para a Dra. Camila. Entraremos em contato em breve. ✅");
+        }
+    }
+
+    async classifyCase(message) {
+        const systemPrompt = `Você é triagista jurídico do escritório da Dra. Camila Moura.
+Analise o relato e classifique conforme as regras abaixo.
+
+**ÁREAS ATENDIDAS:**
+1. PREVIDENCIÁRIO (principal):
+   - "Incapacidade" - Auxílio-doença, aposentadoria por invalidez, acidentes, doenças
+   - "BPC Idoso" - Pessoas com 65+ anos, baixa renda, nunca contribuíram
+   - "BPC Deficiente" - Pessoas com deficiência, baixa renda
+   - "Aposentadoria" - Por tempo, idade, especial
+   - "Aposentadoria PcD" - Aposentadoria para pessoa com deficiência
+   - "Pensão por Morte" - Falecimento de segurado
+   - "Adicional 25%" - Aposentados que precisam de cuidador
+
+2. TRABALHISTA:
+   - "Trabalhista" - Demissão, verbas rescisórias, horas extras, acidente de trabalho
+
+3. CONSUMIDOR:
+   - "Consumidor" - Nome sujo indevido, cobranças, plano de saúde, bancos
+
+**ENCERRAMENTO AUTOMÁTICO (should_close = true):**
+- Cliente menciona já ter advogado constituído → close_reason: "has_lawyer"
+- Assunto fora das áreas (criminal, família, imobiliário) → close_reason: "outside_area"
+- Pedidos incompatíveis (consultas gratuitas genéricas) → close_reason: "incompatible"
+
+**RESPONDA APENAS JSON:**
+{
+  "client_name": "Nome extraído ou null",
+  "type": "Categoria (usar exatamente os nomes acima)",
+  "urgency": "Alta" | "Normal",
+  "summary": "Resumo objetivo do caso",
+  "should_close": false,
+  "close_reason": null
+}`;
+
+        try {
+            const response = await openaiClient.post('/chat/completions', {
+                model: "gpt-4-turbo-preview",
+                messages: [
+                    { role: "system", content: systemPrompt },
+                    { role: "user", content: `Relato: "${message}"` }
+                ],
+                response_format: { type: "json_object" },
+                temperature: 0.0
+            });
+            return JSON.parse(response.data.choices[0].message.content);
+        } catch (error) {
+            console.error('OpenAI Error:', error.response?.data || error.message);
+            return {
+                client_name: null,
+                type: 'Geral',
+                urgency: 'Normal',
+                summary: message.substring(0, 100),
+                should_close: false,
+                close_reason: null
+            };
+        }
+    }
+
+    requiresInPersonAttendance(classification) {
+        // Casos previdenciários que exigem atendimento presencial
+        const inPersonKeywords = ['Incapacidade', 'doença', 'acidente', 'perícia'];
+        const type = classification.type?.toLowerCase() || '';
+        const summary = classification.summary?.toLowerCase() || '';
+
+        if (type === 'incapacidade') return true;
+        if (inPersonKeywords.some(kw => summary.includes(kw.toLowerCase()))) return true;
+        if (classification.urgency === 'Alta') return true;
+
+        return false;
+    }
+
+    async getCloseMessage(reason) {
+        switch (reason) {
+            case 'has_lawyer':
+                const msgAdvogado = await BotConfig.findOne({ where: { key: 'MSG_ADVOGADO_EXISTENTE' } });
+                return msgAdvogado?.value ||
+                    'Entendemos. Como você já possui advogado constituído, por ética profissional (OAB), não podemos prosseguir. Recomendamos contatar seu advogado atual.\n\nAtendimento encerrado.';
+            case 'outside_area':
+                return 'Agradecemos seu contato. Infelizmente, este assunto não está entre as áreas atendidas pelo nosso escritório (Previdenciário, Trabalhista e Consumidor).\n\nRecomendamos buscar um especialista na área específica.';
+            case 'incompatible':
+                return 'Agradecemos seu contato. No momento, não podemos atender sua solicitação através deste canal.\n\nPara demandas específicas, entre em contato diretamente com o escritório.';
+            default:
+                return 'Atendimento encerrado. Obrigado pelo contato.';
         }
     }
 
     async findTrelloCard(phone) {
         try {
-            // BUSCA GLOBAL NO BOARD (Safety: Garante que não duplica se já estiver em 'Judicial' etc)
             const response = await trelloClient.get(`/search`, {
                 params: {
                     query: phone,
                     modelTypes: 'cards',
                     idBoards: boardId,
-                    partial: true // Match parcial para garantir
+                    partial: true
                 }
             });
-            // Retorna o primeiro card encontrado em qualquer lista do board
             return (response.data?.cards?.length > 0) ? response.data.cards[0] : null;
         } catch (error) {
             console.error('Error searching Trello:', error);
@@ -145,128 +193,79 @@ class AutomationService {
         }
     }
 
-    async addCommentToCard(id, text) { await trelloClient.post(`/cards/${id}/actions/comments`, { text }); }
-    async sendWhatsappMessage(phone, msg) { await zapiClient.post('/send-text', { phone, message: msg }); }
+    async addCommentToCard(id, text) {
+        await trelloClient.post(`/cards/${id}/actions/comments`, { text });
+    }
 
-    async classifyWithOpenAI(systemPrompt, userMessage) {
-        try {
-            const completion = await openaiClient.post('/chat/completions', {
-                model: "gpt-3.5-turbo",
-                messages: [
-                    { role: "system", content: systemPrompt }, // Prompt já deve conter instrução JSON
-                    { role: "user", content: userMessage }
-                ],
-                temperature: 0.0 // Mais determinístico
-            });
-            const content = completion.data.choices[0].message.content;
-            return JSON.parse(content);
-        } catch (error) {
-            console.error('OpenAI Error:', error.response?.data || error.message);
-            return { type: 'Geral', urgency: 'Low', summary: userMessage };
-        }
+    async sendWhatsappMessage(phone, msg) {
+        await zapiClient.post('/send-text', { phone, message: msg });
     }
 
     async createTrelloCard(phone, message, classification, isUrgent) {
         try {
-            // 1. Definição da Lista de Entrada
+            // 1. Define lista de entrada
             const configList = await BotConfig.findOne({ where: { key: 'TRELLO_LIST_ID' } });
             let targetListId = configList?.value;
 
-            // Fallback inteligente se não configurado
             if (!targetListId) {
                 try {
                     const listsRes = await trelloClient.get(`/boards/${boardId}/lists`);
                     const lists = listsRes.data;
-                    const fallbackList = lists.find(l => /triagem|novos|entrada/i.test(l.name)) || lists[0];
+                    const fallbackList = lists.find(l => /triagem|checklist|novos|entrada/i.test(l.name)) || lists[0];
                     if (fallbackList) targetListId = fallbackList.id;
                 } catch (e) { console.error('Error fetching lists:', e.message); }
             }
 
             if (!targetListId) throw new Error('Target List not found');
 
-            // 2. Montagem da Descrição
-            const description = `ÁREA: ${classification.type || 'Geral'}\n\n` +
-                `Telefone: ${phone}\n` +
-                `**Resumo IA:** ${classification.summary}\n` +
-                `**Urgência:** ${classification.urgency}\n\n` +
-                `---\n*Relato Original:*\n${message}`;
+            // 2. Nome do cliente (ou telefone se não informado)
+            const clientName = classification.client_name || phone;
+            const cardTitle = `${clientName.toUpperCase()}: ${phone}`;
 
-            // 3. Preparação de Etiquetas (Labels)
+            // 3. Descrição no formato solicitado
+            const description =
+                `ÁREA: ${classification.type || 'Geral'}
+
+Telefone: ${phone}
+Resumo: ${classification.summary}
+Urgência: ${classification.urgency}
+
+---
+Relato Original:
+${message}`;
+
+            // 4. Busca etiqueta pelo NOME da categoria
             const labelIds = [];
-            let boardLabels = null;
+            try {
+                const labelsRes = await trelloClient.get(`/boards/${boardId}/labels`);
+                const labels = labelsRes.data;
 
-            // Helper to get labels if needed
-            const getBoardLabels = async () => {
-                if (!boardLabels) {
-                    try {
-                        const res = await trelloClient.get(`/boards/${boardId}/labels`);
-                        boardLabels = res.data;
-                    } catch (e) { console.error('Error fetching labels:', e.message); boardLabels = []; }
-                }
-                return boardLabels;
-            };
+                // Busca label que corresponde ao tipo classificado
+                const matchedLabel = labels.find(l =>
+                    l.name && l.name.toLowerCase() === classification.type?.toLowerCase()
+                );
 
-            // A. Etiqueta de Especialidade
-            const specialtiesConfig = await BotConfig.findOne({ where: { key: 'SPECIALTIES_JSON' } });
-            if (specialtiesConfig) {
-                try {
-                    const specialties = JSON.parse(specialtiesConfig.value);
-                    const matchedSpec = specialties.find(s => s.name === classification.type);
-                    if (matchedSpec && matchedSpec.labelId) labelIds.push(matchedSpec.labelId);
-                } catch (e) { console.error('Error parsing specialities:', e); }
-            } else {
-                // Fallback: Tenta achar label com o mesmo nome
-                try {
-                    const labels = await getBoardLabels();
-                    const match = labels.find(l => l.name && l.name.toLowerCase() === classification.type?.toLowerCase());
-                    if (match) labelIds.push(match.id);
-                } catch (e) { /* ignore */ }
-            }
-
-            // B. Etiqueta de Urgência
-            if (isUrgent) {
-                const configUrgent = await BotConfig.findOne({ where: { key: 'TRELLO_LABEL_URGENTE_ID' } });
-                if (configUrgent?.value) {
-                    labelIds.push(configUrgent.value);
+                if (matchedLabel) {
+                    labelIds.push(matchedLabel.id);
+                    console.log(`[Label] Encontrada: ${matchedLabel.name} (${matchedLabel.id})`);
                 } else {
-                    // Fallback Inteligente
-                    try {
-                        const labels = await getBoardLabels();
-                        const urgentLabel = labels.find(l =>
-                            (l.name && /urgente|high|prioridade/i.test(l.name)) ||
-                            (l.color === 'red')
-                        );
-                        if (urgentLabel) {
-                            console.log(`[Smart Fallback] Label Urgente encontrada: ${urgentLabel.name} (${urgentLabel.id})`);
-                            labelIds.push(urgentLabel.id);
-                        }
-                    } catch (e) { /* ignore */ }
+                    console.log(`[Label] Não encontrada para tipo: ${classification.type}`);
                 }
+            } catch (e) {
+                console.error('Error fetching labels:', e.message);
             }
 
+            // 5. Cria o card
             const cardData = {
                 idList: targetListId,
-                name: `${classification.type || 'Novo'}: ${phone}`,
+                name: cardTitle,
                 desc: description,
                 pos: 'top',
                 idLabels: labelIds
             };
 
             const createdCard = await trelloClient.post('/cards', cardData);
-            const cardId = createdCard.data.id;
-            console.log(`[Trello] Card criado: ${cardId} com labels: ${labelIds.join(', ')}`);
-
-            // Garantia (Fallback loop)
-            if (labelIds.length > 0) {
-                for (const labelId of labelIds) {
-                    await trelloClient.post(`/cards/${cardId}/idLabels`, { value: labelId })
-                        .catch(err => {
-                            if (!err.response || (err.response.status !== 400 && err.response.status !== 409)) {
-                                console.error(`[Warn] Falha na garantia de label ${labelId}:`, err.message);
-                            }
-                        });
-                }
-            }
+            console.log(`[Trello] Card criado: ${createdCard.data.id} - ${cardTitle}`);
 
         } catch (error) {
             console.error('Trello Create Error:', error);
@@ -275,3 +274,4 @@ class AutomationService {
 }
 
 module.exports = new AutomationService();
+

@@ -15,15 +15,15 @@ const BotConfig = require('./src/models/botConfig');
 const DEFAULT_CONFIGS = [
     {
         key: 'AVISO_ETICO',
-        value: 'Olá! Sou a assistente virtual da Dra. Camila. ⚖️\n\nAntes de prosseguirmos, informo que este canal é monitorado e suas informações serão triadas pela nossa inteligência artificial. \n\nPor favor, descreva seu caso detalhadamente.'
+        value: 'Olá! Você entrou em contato com o escritório da Dra. Camila Moura. ⚖️\n\nAtuamos nas áreas de Direito Previdenciário, Trabalhista e do Consumidor.\n\nPor favor, descreva brevemente sua situação para que possamos direcionar seu atendimento.'
     },
     {
         key: 'MSG_ADVOGADO_EXISTENTE',
-        value: 'Entendemos. Como você já possui advogado constituído, por ética profissional da OAB, não podemos prosseguir com o atendimento consultivo por aqui. Recomendamos que contate seu advogado atual. \n\nAtendimento encerrado.'
+        value: 'Entendemos. Como você já possui advogado constituído, por ética profissional (OAB), não podemos prosseguir com o atendimento. Recomendamos que contate seu advogado atual.\n\nAtendimento encerrado.'
     },
     {
         key: 'MSG_PRESENCIAL',
-        value: 'Identifiquei que seu caso pode ter urgência ou prazos curtos. 🚨\n\nRecomendamos fortemente que você agende uma visita presencial ou ligue imediatamente para nosso escritório.'
+        value: 'Identificamos que seu caso envolve questões que requerem uma análise presencial inicial (perícia médica, documentação de saúde ou prazos urgentes). 🏢\n\nPor favor, entre em contato pelo telefone (XX) XXXXX-XXXX para agendar uma consulta.'
     },
     {
         key: 'TRELLO_LIST_ID',
@@ -36,30 +36,20 @@ const DEFAULT_CONFIGS = [
     {
         key: 'SPECIALTIES_JSON',
         value: JSON.stringify([
-            { id: 1, name: 'BPC/LOAS', keywords: 'idoso, deficiente, loas, bpc, baixa renda', rules: 'Idosos > 65 anos ou Deficientes. Renda familiar de até 1/4 do salário mínimo.', urgent: false },
-            { id: 2, name: 'Auxílio Doença', keywords: 'doença, acidente, inss, afastamento, cirurgia', rules: 'Problema de saúde que impeça o trabalho.', urgent: true },
-            { id: 3, name: 'Aposentadoria', keywords: 'tempo de serviço, idade, contribuição', rules: 'Análise de tempo de contribuição ou idade.', urgent: false }
+            { id: 1, name: 'BPC Idoso', keywords: 'idoso, 65 anos, nunca trabalhou, baixa renda', rules: 'Pessoas com 65+ anos, baixa renda, nunca contribuíram ao INSS.', urgent: false },
+            { id: 2, name: 'BPC Deficiente', keywords: 'deficiente, autismo, pcd, baixa renda, deficiência', rules: 'Pessoas com deficiência e baixa renda.', urgent: false },
+            { id: 3, name: 'Incapacidade', keywords: 'doença, acidente, afastado, perícia, cirurgia, inss negou', rules: 'Auxílio-doença, aposentadoria por invalidez. REQUER ATENDIMENTO PRESENCIAL.', urgent: true },
+            { id: 4, name: 'Aposentadoria', keywords: 'tempo de serviço, idade, contribuição, aposentar', rules: 'Aposentadoria por tempo, idade ou especial.', urgent: false },
+            { id: 5, name: 'Aposentadoria PcD', keywords: 'aposentadoria deficiente, pcd aposentadoria', rules: 'Aposentadoria para pessoa com deficiência.', urgent: false },
+            { id: 6, name: 'Pensão por Morte', keywords: 'faleceu, viúva, pensão, morte, óbito', rules: 'Dependentes de segurado falecido.', urgent: false },
+            { id: 7, name: 'Adicional 25%', keywords: 'cuidador, acamado, precisa de ajuda, aposentado doente', rules: 'Aposentados que precisam de acompanhante permanente.', urgent: false },
+            { id: 8, name: 'Trabalhista', keywords: 'demitido, CLT, patrão, horas extras, justa causa, rescisão', rules: 'Questões trabalhistas em geral.', urgent: false },
+            { id: 9, name: 'Consumidor', keywords: 'banco, nome sujo, cobrança, plano de saúde, voo', rules: 'Direito do consumidor.', urgent: false }
         ])
     },
     {
         key: 'PROMPT_SISTEMA',
-        value: `Você é uma Assistente Jurídica do escritório da Dra. Camila.
-Sua função é TRIAR e CLASSIFICAR o relato do cliente.
-
-**CATEGORIAS:**
-1. BPC/LOAS - Idosos > 65 ou Deficientes com baixa renda
-2. Auxílio Doença - Problemas de saúde, afastamento (URGÊNCIA ALTA)
-3. Aposentadoria - Tempo de contribuição, idade
-4. Trabalhista - Demissão, justa causa, acidente de trabalho
-5. Consumidor - Nome sujo, cobrança indevida, plano de saúde
-
-**RESPONDA APENAS O JSON:**
-{
-  "client_name": "Nome ou Não informado",
-  "type": "Categoria",
-  "urgency": "Alta" ou "Baixa",
-  "summary": "Resumo do caso"
-}`
+        value: ''
     }
 ];
 
