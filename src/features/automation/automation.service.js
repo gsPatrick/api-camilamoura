@@ -214,18 +214,33 @@ OUTROS:
     }
 
     async findTrelloCard(phone) {
+        // Busca apenas na lista "Triagem Bot" (cards em andamento do bot)
+        // Cards em outras listas (Atendimento, CHECKLIST, etc.) NÃO bloqueiam novos atendimentos
         try {
-            const response = await trelloClient.get(`/search`, {
-                params: {
-                    query: phone,
-                    modelTypes: 'cards',
-                    idBoards: boardId,
-                    partial: true
-                }
-            });
-            return (response.data?.cards?.length > 0) ? response.data.cards[0] : null;
+            const configList = await BotConfig.findOne({ where: { key: 'TRELLO_LIST_ID' } });
+            const triagemListId = configList?.value || process.env.TRELLO_LIST_ID;
+
+            if (!triagemListId) {
+                console.log('[Trello] TRELLO_LIST_ID não configurado');
+                return null;
+            }
+
+            // Busca cards da lista Triagem Bot
+            const response = await trelloClient.get(`/lists/${triagemListId}/cards`);
+            const cards = response.data || [];
+
+            // Procura card que contenha o telefone no título
+            const matchedCard = cards.find(card =>
+                card.name && card.name.includes(phone)
+            );
+
+            if (matchedCard) {
+                console.log(`[Trello] Card em Triagem Bot encontrado: ${matchedCard.name}`);
+            }
+
+            return matchedCard || null;
         } catch (error) {
-            console.error('Error searching Trello:', error);
+            console.error('Error searching Trello:', error.message);
             return null;
         }
     }
