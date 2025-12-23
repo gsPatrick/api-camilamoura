@@ -6,6 +6,8 @@ const sequelize = require('./src/config/database');
 const server = http.createServer(app);
 const PORT = process.env.PORT || 3000;
 
+console.log('🚀 Sistema Advocacia Camila Moura - Iniciando...');
+
 const UserService = require('./src/features/user/user.service');
 const BotConfig = require('./src/models/botConfig');
 
