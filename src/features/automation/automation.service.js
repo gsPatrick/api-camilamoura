@@ -12,7 +12,26 @@ class AutomationService {
         if (webhookData.fromMe) return;
 
         const phone = webhookData.phone;
-        const message = webhookData.text && webhookData.text.message ? webhookData.text.message : '';
+        let message = '';
+
+        // Suporte a mensagens de texto
+        if (webhookData.text && webhookData.text.message) {
+            message = webhookData.text.message;
+        }
+
+        // Suporte a mensagens de áudio - transcrição com Whisper
+        if (webhookData.audio && webhookData.audio.audioUrl) {
+            console.log(`[Audio] Recebido áudio de ${phone}, transcrevendo...`);
+            try {
+                message = await this.transcribeAudio(webhookData.audio.audioUrl);
+                console.log(`[Audio] Transcrição: ${message.substring(0, 100)}...`);
+            } catch (err) {
+                console.error('[Audio] Erro na transcrição:', err.message);
+                // Envia mensagem pedindo texto se falhar a transcrição
+                await this.sendWhatsappMessage(phone, 'Desculpe, não consegui ouvir seu áudio. Pode digitar sua mensagem, por favor?');
+                return;
+            }
+        }
 
         if (!message) return;
 
@@ -551,8 +570,8 @@ Seja acolhedora e profissional. Se a dúvida for muito específica, oriente a ag
 
             if (!targetListId) throw new Error('Target List not found');
 
-            // Aplica template do título
-            let cardTitle = flowConfig.trelloTitleTemplate || '{nome}: {telefone}';
+            // Aplica template do título - padrão: NOME - TELEFONE
+            let cardTitle = flowConfig.trelloTitleTemplate || '{nome} - {telefone}';
             let cardDesc = flowConfig.trelloDescTemplate ||
                 '**Área:** {area}\n**Telefone:** {telefone}\n**Resumo:** {resumo}';
 
@@ -693,6 +712,10 @@ OUTROS:
 
     async findTrelloCard(phone) {
         try {
+            // Busca por telefone em diversos padrões que a cliente pode ter usado:
+            // - NOME: NUMERO
+            // - NOME - NUMERO  
+            // - Apenas NUMERO
             const response = await trelloClient.get(`/search`, {
                 params: {
                     query: phone,
@@ -703,6 +726,19 @@ OUTROS:
             });
 
             if (response.data?.cards?.length > 0) {
+                // Encontra card que contém o número no título
+                const matchingCard = response.data.cards.find(card => {
+                    const title = card.name || '';
+                    // Verifica se o telefone aparece em qualquer padrão
+                    return title.includes(phone) ||
+                        title.includes(phone.replace(/^55/, '')) || // Sem o 55
+                        title.includes(phone.slice(-8)); // Últimos 8 dígitos
+                });
+                if (matchingCard) {
+                    console.log(`[Trello] Card encontrado: ${matchingCard.name}`);
+                    return matchingCard;
+                }
+                // Fallback: retorna o primeiro resultado
                 return response.data.cards[0];
             }
             return null;
@@ -718,6 +754,52 @@ OUTROS:
 
     async sendWhatsappMessage(phone, msg) {
         await zapiClient.post('/send-text', { phone, message: msg });
+    }
+
+    // ==================== TRANSCRIÇÃO DE ÁUDIO (WHISPER) ====================
+    async transcribeAudio(audioUrl) {
+        const axios = require('axios');
+        const FormData = require('form-data');
+
+        try {
+            // 1. Baixa o áudio da URL
+            console.log('[Whisper] Baixando áudio...');
+            const audioResponse = await axios.get(audioUrl, {
+                responseType: 'arraybuffer',
+                timeout: 30000
+            });
+
+            // 2. Prepara o FormData para o Whisper
+            const formData = new FormData();
+            formData.append('file', Buffer.from(audioResponse.data), {
+                filename: 'audio.ogg',
+                contentType: 'audio/ogg'
+            });
+            formData.append('model', 'whisper-1');
+            formData.append('language', 'pt');
+
+            // 3. Envia para a API do Whisper
+            console.log('[Whisper] Transcrevendo...');
+            const transcriptionResponse = await axios.post(
+                'https://api.openai.com/v1/audio/transcriptions',
+                formData,
+                {
+                    headers: {
+                        ...formData.getHeaders(),
+                        'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`
+                    },
+                    timeout: 60000
+                }
+            );
+
+            const transcription = transcriptionResponse.data.text;
+            console.log(`[Whisper] Transcrição concluída: ${transcription.substring(0, 50)}...`);
+            return transcription;
+
+        } catch (error) {
+            console.error('[Whisper] Erro:', error.message);
+            throw new Error('Falha na transcrição do áudio');
+        }
     }
 }
 

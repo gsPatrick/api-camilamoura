@@ -27,10 +27,10 @@ const FlowConfig = sequelize.define('FlowConfig', {
         type: DataTypes.ENUM('AI_RESPONSE', 'WAIT_CONTACT'),
         defaultValue: 'WAIT_CONTACT'
     },
-    // Template do título do card Trello
+    // Template do título do card Trello - Padrão: NOME - TELEFONE
     trelloTitleTemplate: {
         type: DataTypes.STRING,
-        defaultValue: '{telefone} - {nome}'
+        defaultValue: '{nome} - {telefone}'
     },
     // Template da descrição do card Trello
     trelloDescTemplate: {
