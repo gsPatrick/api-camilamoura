@@ -193,16 +193,25 @@ class AutomationService {
 
         switch (conversation.step) {
             case 'WAITING_NAME':
-                // Extrai nome e pergunta sobre advogado
-                let clientName = message.trim().split('\n')[0].substring(0, 100);
-                // Limpeza básica de nome
-                clientName = clientName.replace(/[^a-zA-ZÀ-ÿ\s]/g, '');
+                // Extrai nome usando o helper aprimorado, ou faz fallback básico
+                let extractedName = await this.extractNameFromMessage(message);
                 
-                conversation.clientName = clientName;
+                if (!extractedName) {
+                    // Fallback se a regex não pegar: pega as primeiras palavras e limpa
+                    extractedName = message.trim().split('\n')[0].substring(0, 100);
+                    // Remove palavras comuns de introdução se estiverem no início (fallback do fallback)
+                    extractedName = extractedName.replace(/^(oba|ola|olá|oi|oii|aqui e|aqui é)\s+/i, '');
+                    extractedName = extractedName.replace(/[^a-zA-ZÀ-ÿ\s]/g, '').trim();
+                }
+                
+                // Pega apenas o primeiro nome para uma comunicação mais próxima
+                const firstName = extractedName.split(' ')[0] || 'Cliente';
+                
+                conversation.clientName = extractedName;
                 conversation.step = 'LAWYER_CHECK';
                 await conversation.save();
 
-                await this.sendWhatsappMessage(phone, `Obrigada, ${clientName.split(' ')[0]}!\n\nAntes de começarmos, preciso fazer uma pergunta importante:\n\nVocê já possui algum advogado cuidando deste assunto atualmente?`);
+                await this.sendWhatsappMessage(phone, `Obrigada, ${firstName}!\n\nAntes de começarmos, preciso fazer uma pergunta importante:\n\nVocê já possui algum advogado cuidando deste assunto atualmente?`);
                 break;
 
             case 'LAWYER_CHECK':
@@ -706,7 +715,7 @@ ${knowledgeContext}`;
 
   async extractNameFromMessage(message) {
     const match = message.match(
-      /^(?:meu nome é|sou|me chamo|eu sou)?\s*([A-ZÀ-Ÿ][a-zà-ÿ]+(?:\s+[A-ZÀ-Ÿ][a-zà-ÿ]+)*)/i,
+      /^(?:meu nome é|sou|me chamo|eu sou|aqui é|aqui e|daqui fala|falo com)?\s*([A-ZÀ-Ÿ][a-zà-ÿ]+(?:\s+[A-ZÀ-Ÿ][a-zà-ÿ]+)*)/i,
     );
     if (match && match[1]) {
       return match[1].trim();
