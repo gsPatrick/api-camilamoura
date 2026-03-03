@@ -129,7 +129,7 @@ class AutomationService {
 
             // 1. Caso Encerrado (CLOSED)
             if (conversation.step === 'CLOSED') {
-                await this.sendWhatsappMessage(phone, `Olá, ${firstName}! Você quer falar sobre o caso que encaminhamos ou é um novo assunto?`);
+                await this.sendWhatsappMessage(phone, `Olá, ${firstName}! Aqui é a Carol. Você quer falar sobre o caso que encaminhamos ou é um novo assunto?`);
                 conversation.step = 'WAITING_SUBJECT_CHOICE'; // Novo passo temporário
                 await conversation.save();
                 return;
@@ -149,7 +149,7 @@ class AutomationService {
             // 3. Retorno depois de 24h
             if (diffHours >= 24 && conversation.step !== 'INITIAL') {
                 console.log(`[Flow] Retorno > 24h de ${phone}`);
-                await this.sendWhatsappMessage(phone, `Olá novamente${shortFirstName ? ', ' + shortFirstName : ''}! Como posso ajudar hoje? 🌸`);
+                await this.sendWhatsappMessage(phone, `Olá novamente${shortFirstName ? ', ' + shortFirstName : ''}! Aqui é a Carol. Como posso ajudar hoje? 🌸`);
                 // Mantém o estado mas sinaliza boas-vindas curtas
             }
         }
@@ -202,11 +202,7 @@ class AutomationService {
                 let extractedName = await this.extractNameFromMessage(message);
                 
                 if (!extractedName) {
-                    // Fallback se a regex não pegar: pega as primeiras palavras e limpa
-                    extractedName = message.trim().split('\n')[0].substring(0, 100);
-                    // Remove palavras comuns de introdução se estiverem no início (fallback do fallback)
-                    extractedName = extractedName.replace(/^(oba|ola|olá|oi|oii|aqui e|aqui é)\s+/i, '');
-                    extractedName = extractedName.replace(/[^a-zA-ZÀ-ÿ\s]/g, '').trim();
+                    extractedName = 'Cliente';
                 }
                 
                 // Pega apenas o primeiro nome para uma comunicação mais próxima
@@ -362,17 +358,8 @@ class AutomationService {
     if (questions.length === 0 || currentIndex === -1) {
       // Primeira resposta = nome
       if (!conversation.clientName) {
-        let clientName = message
-          .trim()
-          .replace(/[^a-zA-ZÀ-ÿ\s]/g, "")
-          .substring(0, 100);
-        clientName = clientName
-          .split(" ")
-          .map(
-            (word) =>
-              word.charAt(0).toUpperCase() + word.slice(1).toLowerCase(),
-          )
-          .join(" ");
+        let clientName = await this.extractNameFromMessage(message);
+        if (!clientName) clientName = 'Cliente';
 
         conversation.clientName = clientName;
         conversation.currentQuestionIndex = -2;
@@ -397,17 +384,9 @@ class AutomationService {
     if (currentQuestion) {
       // Se é a pergunta de nome, salva no clientName também
       if (currentQuestion.variableName === "nome") {
-        let clientName = message
-          .trim()
-          .replace(/[^a-zA-ZÀ-ÿ\s]/g, "")
-          .substring(0, 100);
-        conversation.clientName = clientName
-          .split(" ")
-          .map(
-            (word) =>
-              word.charAt(0).toUpperCase() + word.slice(1).toLowerCase(),
-          )
-          .join(" ");
+        let clientName = await this.extractNameFromMessage(message);
+        if (!clientName) clientName = 'Cliente';
+        conversation.clientName = clientName;
       }
 
       responses[currentQuestion.variableName] = message;
@@ -719,13 +698,14 @@ ${knowledgeContext}`;
   // ==================== HELPERS ====================
 
   async extractNameFromMessage(message) {
-    const match = message.match(
-      /^(?:meu nome é|sou|me chamo|eu sou|aqui é|aqui e|daqui fala|falo com)?\s*([A-ZÀ-Ÿ][a-zà-ÿ]+(?:\s+[A-ZÀ-Ÿ][a-zà-ÿ]+)*)/i,
-    );
-    if (match && match[1]) {
-      return match[1].trim();
-    }
-    return null;
+    let cleanMessage = message.trim().split('\n')[0].substring(0, 100);
+    cleanMessage = cleanMessage.replace(/^(oba|ola|olá|oi|oii|bom dia|boa tarde|boa noite)\s*[,\.\-!\?]*\s*/i, '');
+    cleanMessage = cleanMessage.replace(/^(meu nome e|meu nome é|sou|me chamo|eu sou|aqui e|aqui é|daqui fala|falo com)\s*[,\.\-!\?]*\s*/i, '');
+    
+    let name = cleanMessage.replace(/[^a-zA-ZÀ-ÿ\s]/g, '').trim();
+    if (!name) return null;
+    
+    return name.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
   }
 
   async getKnowledgeContext() {
