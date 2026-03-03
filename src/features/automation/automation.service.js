@@ -121,10 +121,15 @@ class AutomationService {
             const lastUpdate = new Date(conversation.updatedAt);
             const now = new Date();
             const diffHours = (now - lastUpdate) / (1000 * 60 * 60);
+            
+            // Pega apenas o primeiro nome caso o banco tenha salvo algo longo por engano anterior
+            const storedName = conversation.clientName || '';
+            const firstName = storedName.split(' ')[0] || 'que bom ter você de volta';
+            const shortFirstName = storedName.split(' ')[0] || '';
 
             // 1. Caso Encerrado (CLOSED)
             if (conversation.step === 'CLOSED') {
-                await this.sendWhatsappMessage(phone, `Olá, ${conversation.clientName || 'que bom ter você de volta'}! Você quer falar sobre o caso que encaminhamos ou é um novo assunto?`);
+                await this.sendWhatsappMessage(phone, `Olá, ${firstName}! Você quer falar sobre o caso que encaminhamos ou é um novo assunto?`);
                 conversation.step = 'WAITING_SUBJECT_CHOICE'; // Novo passo temporário
                 await conversation.save();
                 return;
@@ -144,7 +149,7 @@ class AutomationService {
             // 3. Retorno depois de 24h
             if (diffHours >= 24 && conversation.step !== 'INITIAL') {
                 console.log(`[Flow] Retorno > 24h de ${phone}`);
-                await this.sendWhatsappMessage(phone, `Olá novamente, ${conversation.clientName || ''}! Como posso ajudar hoje? 🌸`);
+                await this.sendWhatsappMessage(phone, `Olá novamente${shortFirstName ? ', ' + shortFirstName : ''}! Como posso ajudar hoje? 🌸`);
                 // Mantém o estado mas sinaliza boas-vindas curtas
             }
         }
