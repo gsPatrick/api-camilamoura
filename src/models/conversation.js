@@ -7,13 +7,18 @@ const Conversation = sequelize.define('Conversation', {
         allowNull: false,
         unique: true,
     },
-    // Estado do fluxo: INITIAL, COLLECTING, PROCESSING, AI_CHAT, CLOSED
+    // Estado do fluxo: INITIAL, WAITING_NAME, LAWYER_CHECK, DEMAND_SELECTION, COLLECTING, PROCESSING, AI_CHAT, CLOSED
     step: {
-        type: DataTypes.ENUM('INITIAL', 'COLLECTING', 'PROCESSING', 'AI_CHAT', 'CLOSED'),
+        type: DataTypes.ENUM('INITIAL', 'WAITING_NAME', 'LAWYER_CHECK', 'DEMAND_SELECTION', 'COLLECTING', 'PROCESSING', 'AI_CHAT', 'CLOSED'),
         defaultValue: 'INITIAL',
     },
     // Nome do cliente
     clientName: {
+        type: DataTypes.STRING,
+        allowNull: true
+    },
+    // Módulo selecionado (PREVIDENCIARIO, TRABALHISTA, CONSUMIDOR, OUTRO)
+    selectedModule: {
         type: DataTypes.STRING,
         allowNull: true
     },

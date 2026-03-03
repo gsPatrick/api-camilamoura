@@ -18,11 +18,11 @@ const FlowQuestion = require('./src/models/flowQuestion');
 const DEFAULT_CONFIGS = [
     {
         key: 'AVISO_ETICO',
-        value: 'Olá! Você entrou em contato com o escritório da Dra. Camila Moura. ⚖️\n\nAtuamos nas áreas de Direito Previdenciário, Trabalhista e do Consumidor.\n\nPor favor, descreva brevemente sua situação para que possamos direcionar seu atendimento.'
+        value: 'Olá! Você entrou em contato com a Advocacia Camila Moura. ⚖️\n\nSomos especialistas em Direito Previdenciário, com expertise em Trabalhista e Consumidor.\n\nMeu nome é Carol e estou aqui para direcionar seu atendimento da melhor forma!\n\nNosso horário de atendimento:\nSegunda a sexta-feira, das 09h às 18h (dias úteis)\n\nAntes de começarmos, deixa eu te explicar como funciona nosso atendimento:\n1️⃣ Vou fazer algumas perguntas para entender sua situação\n2️⃣ Vou pedir documentos importantes (você pode enviar depois se não tiver agora)\n3️⃣ Nossa equipe jurídica vai analisar tudo com atenção\n4️⃣ Em até 48h úteis você recebe o retorno com avaliação completa do seu caso\n\nTodo atendimento é personalizado porque cada caso é único!\n\nPara começarmos, qual é o seu nome?'
     },
     {
         key: 'MSG_ADVOGADO_EXISTENTE',
-        value: 'Entendemos. Como você já possui advogado constituído, por ética profissional (OAB), não podemos prosseguir com o atendimento. Recomendamos que contate seu advogado atual.\n\nAtendimento encerrado.'
+        value: 'Agradeço muito pelo contato! ⚖️\n\nPor questão de ética profissional (OAB), não podemos atender demandas que já estão sob cuidado de outro advogado.\n\nMas ficamos totalmente à disposição caso você precise de orientação sobre qualquer outro assunto no futuro!\n\nDesejamos sucesso no seu processo!\n\nAtendimento encerrado.'
     },
     {
         key: 'MSG_PRESENCIAL',
@@ -53,6 +53,10 @@ const DEFAULT_CONFIGS = [
     {
         key: 'PROMPT_SISTEMA',
         value: ''
+    },
+    {
+        key: 'CNIS_INSTRUCTIONS',
+        value: 'COMO EMITIR O CNIS EM PDF PELO MEU INSS:\n\n1️⃣ Acesse o Meu INSS (meu.inss.gov.br ou App).\n2️⃣ Faça login com sua conta Gov.br.\n3️⃣ Vá até "Extratos e Comprovantes".\n4️⃣ Escolha "Extrato de Contribuições (CNIS)".\n5️⃣ Role até o final e clique em "Baixar Documento".\n6️⃣ Selecione "Vínculos, contribuições e remunerações".\n7️⃣ Salve o arquivo em PDF.\n\nQuando conseguir, me envia! Sem ele, a Dra. Camila e equipe jurídica não conseguem analisar seu caso.'
     }
 ];
 
