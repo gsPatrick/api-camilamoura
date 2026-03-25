@@ -13,6 +13,7 @@ const BotConfig = require('./src/models/botConfig');
 const KnowledgeBase = require('./src/models/knowledgeBase');
 const FlowConfig = require('./src/models/flowConfig');
 const FlowQuestion = require('./src/models/flowQuestion');
+const restoreDataFromBackup = require('./scripts/restore-data');
 
 // Default configurations for the bot
 const DEFAULT_CONFIGS = [
@@ -69,7 +70,18 @@ async function startServer() {
         await sequelize.sync({ alter: true });
         console.log('Database synced.');
 
-        // Seed default configurations
+        // 🔄 AUTO-RESTORE FROM BACKUP IF EMPTY
+        const userCount = await UserService.count();
+        if (userCount === 0) {
+            console.log('⚠️ Banco de dados vazio detectado. Tentando restaurar do backup...');
+            try {
+                await restoreDataFromBackup();
+            } catch (rErr) {
+                console.error('❌ Erro no auto-restore:', rErr.message);
+            }
+        }
+
+        // Seed default configurations (Fallback if no backup)
         console.log('Checking/seeding default configurations...');
         for (const config of DEFAULT_CONFIGS) {
             await BotConfig.findOrCreate({

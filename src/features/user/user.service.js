@@ -29,6 +29,10 @@ class UserService {
     async findByEmail(email) {
         return await User.findOne({ where: { email } });
     }
+
+    async count() {
+        return await User.count();
+    }
 }
 
 module.exports = new UserService();
