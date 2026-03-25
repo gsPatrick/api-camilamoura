@@ -1,0 +1,9 @@
+node_modules
+npm-debug.log
+.env
+.git
+.DS_Store
+*.md
+scripts/export-data.js
+# No ignoramos data-backup.json para que o auto-restore funcione no primeiro deploy docker
+# Mas em produção real, o ideal seria usar volumes para persistência.
